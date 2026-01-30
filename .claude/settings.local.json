@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(test:*)",
+      "Bash(pip install:*)",
+      "Bash(python -m pip install:*)",
+      "Bash(uv pip install:*)",
+      "Bash(uv venv:*)",
+      "Bash(source .venv/Scripts/activate)",
+      "Bash(python bot.py:*)",
+      "Bash(tasklist:*)",
+      "Bash(findstr:*)",
+      "Bash(taskkill:*)",
+      "Bash(.venvScriptspython.exe bot.py)",
+      "Bash(.venv/Scripts/python.exe:*)",
+      "Bash(powershell -Command \"Get-Process python | Stop-Process -Force\")"
+    ]
+  }
+}

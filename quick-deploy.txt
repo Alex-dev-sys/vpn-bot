@@ -1,0 +1,60 @@
+=== БЫСТРОЕ РАЗВЕРТЫВАНИЕ БОТА ===
+
+1. ПОДКЛЮЧЕНИЕ К СЕРВЕРУ
+   ssh root@185.216.87.218
+
+2. УСТАНОВКА ЗАВИСИМОСТЕЙ
+   apt-get update && apt-get install -y python3 python3-pip python3-venv
+
+3. СОЗДАНИЕ ДИРЕКТОРИИ
+   mkdir -p /opt/vpn-bot && cd /opt/vpn-bot
+
+4. ЗАГРУЗКА ФАЙЛОВ (выполнить на ЛОКАЛЬНОМ компьютере в новом окне)
+   cd "c:\Users\user\OneDrive\Desktop\vpn bot\vpn-bot"
+   scp bot.py database.py requirements.txt .env root@185.216.87.218:/opt/vpn-bot/
+
+5. УСТАНОВКА PYTHON ПАКЕТОВ (на сервере)
+   cd /opt/vpn-bot
+   python3 -m venv venv
+   source venv/bin/activate
+   pip install -r requirements.txt
+
+6. СОЗДАНИЕ СЕРВИСА
+   nano /etc/systemd/system/vpn-bot.service
+
+   Вставь это:
+
+   [Unit]
+   Description=VPN Telegram Bot
+   After=network.target
+
+   [Service]
+   Type=simple
+   User=root
+   WorkingDirectory=/opt/vpn-bot
+   Environment="PATH=/opt/vpn-bot/venv/bin"
+   ExecStart=/opt/vpn-bot/venv/bin/python /opt/vpn-bot/bot.py
+   Restart=always
+   RestartSec=10
+
+   [Install]
+   WantedBy=multi-user.target
+
+   Сохрани: Ctrl+O, Enter, Ctrl+X
+
+7. ЗАПУСК
+   systemctl daemon-reload
+   systemctl enable vpn-bot
+   systemctl start vpn-bot
+
+8. ПРОВЕРКА
+   systemctl status vpn-bot
+   journalctl -u vpn-bot -f
+
+=== ГОТОВО! ===
+
+Полезные команды:
+- Логи: journalctl -u vpn-bot -f
+- Перезапуск: systemctl restart vpn-bot
+- Остановка: systemctl stop vpn-bot
+- Статус: systemctl status vpn-bot
