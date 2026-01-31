@@ -134,6 +134,179 @@ async def admin_servers(callback: CallbackQuery):
     await callback.answer()
 
 
+class AddServerStates(StatesGroup):
+    waiting_name = State()
+    waiting_location = State()
+    waiting_country_code = State()
+    waiting_flag = State()
+    waiting_max_users = State()
+    waiting_outline_url = State()
+    waiting_outline_cert = State()
+
+
+@router.callback_query(F.data == "add_server")
+async def add_server_start(callback: CallbackQuery, state: FSMContext):
+    """Начало добавления сервера"""
+    if not is_admin(callback.from_user.id):
+        return
+    
+    await callback.message.edit_text(
+        "➕ *Добавление сервера*\n\n"
+        "Введите название сервера (например: `NL-1`):",
+        parse_mode="Markdown"
+    )
+    await state.set_state(AddServerStates.waiting_name)
+    await callback.answer()
+
+
+@router.message(AddServerStates.waiting_name)
+async def add_server_name(message: Message, state: FSMContext):
+    """Получение названия"""
+    if not is_admin(message.from_user.id):
+        return
+    
+    await state.update_data(name=message.text.strip())
+    await message.answer("🌍 Введите локацию (например: `Нидерланды`):", parse_mode="Markdown")
+    await state.set_state(AddServerStates.waiting_location)
+
+
+@router.message(AddServerStates.waiting_location)
+async def add_server_location(message: Message, state: FSMContext):
+    """Получение локации"""
+    if not is_admin(message.from_user.id):
+        return
+    
+    await state.update_data(location=message.text.strip())
+    await message.answer("🏳️ Введите код страны (например: `NL`, `US`, `DE`):", parse_mode="Markdown")
+    await state.set_state(AddServerStates.waiting_country_code)
+
+
+@router.message(AddServerStates.waiting_country_code)
+async def add_server_country(message: Message, state: FSMContext):
+    """Получение кода страны"""
+    if not is_admin(message.from_user.id):
+        return
+    
+    await state.update_data(country_code=message.text.strip().upper())
+    await message.answer("🚩 Введите эмодзи флага (например: 🇳🇱):", parse_mode="Markdown")
+    await state.set_state(AddServerStates.waiting_flag)
+
+
+@router.message(AddServerStates.waiting_flag)
+async def add_server_flag(message: Message, state: FSMContext):
+    """Получение флага"""
+    if not is_admin(message.from_user.id):
+        return
+    
+    await state.update_data(flag_emoji=message.text.strip())
+    await message.answer("👥 Введите макс. кол-во пользователей (например: `50`):", parse_mode="Markdown")
+    await state.set_state(AddServerStates.waiting_max_users)
+
+
+@router.message(AddServerStates.waiting_max_users)
+async def add_server_max_users(message: Message, state: FSMContext):
+    """Получение макс. пользователей"""
+    if not is_admin(message.from_user.id):
+        return
+    
+    try:
+        max_users = int(message.text.strip())
+    except:
+        max_users = 50
+    
+    await state.update_data(max_users=max_users)
+    await message.answer(
+        "🔗 Введите Outline API URL:\n"
+        "(например: `https://1.2.3.4:12345/xxxxx`)\n\n"
+        "Или отправьте `-` чтобы пропустить:",
+        parse_mode="Markdown"
+    )
+    await state.set_state(AddServerStates.waiting_outline_url)
+
+
+@router.message(AddServerStates.waiting_outline_url)
+async def add_server_outline_url(message: Message, state: FSMContext):
+    """Получение Outline URL"""
+    if not is_admin(message.from_user.id):
+        return
+    
+    url = message.text.strip()
+    if url == "-":
+        url = None
+    
+    await state.update_data(outline_api_url=url)
+    
+    if url:
+        await message.answer(
+            "🔐 Введите Outline Cert SHA256:\n"
+            "(длинная строка из букв и цифр)\n\n"
+            "Или отправьте `-` чтобы пропустить:",
+            parse_mode="Markdown"
+        )
+        await state.set_state(AddServerStates.waiting_outline_cert)
+    else:
+        await finish_add_server(message, state)
+
+
+@router.message(AddServerStates.waiting_outline_cert)
+async def add_server_outline_cert(message: Message, state: FSMContext):
+    """Получение Outline Cert"""
+    if not is_admin(message.from_user.id):
+        return
+    
+    cert = message.text.strip()
+    if cert == "-":
+        cert = None
+    
+    await state.update_data(outline_cert=cert)
+    await finish_add_server(message, state)
+
+
+async def finish_add_server(message: Message, state: FSMContext):
+    """Завершение добавления сервера"""
+    data = await state.get_data()
+    
+    success = await db.add_server(
+        name=data.get('name', 'New Server'),
+        location=data.get('location', 'Unknown'),
+        country_code=data.get('country_code', 'XX'),
+        flag_emoji=data.get('flag_emoji', '🌍'),
+        max_users=data.get('max_users', 50)
+    )
+    
+    if success:
+        # Обновляем Outline данные если есть
+        servers = await db.get_servers(active_only=False)
+        new_server = servers[-1] if servers else None
+        
+        if new_server and data.get('outline_api_url'):
+            await db.update_server_outline_api(
+                new_server['id'],
+                data.get('outline_api_url'),
+                data.get('outline_cert')
+            )
+            # Добавляем в менеджер
+            outline_manager.add_server(
+                server_id=new_server['id'],
+                api_url=data.get('outline_api_url'),
+                cert_sha256=data.get('outline_cert'),
+                name=data.get('name'),
+                location=data.get('location'),
+                country_code=data.get('country_code'),
+                flag_emoji=data.get('flag_emoji')
+            )
+        
+        await message.answer(
+            f"✅ Сервер *{data.get('name')}* добавлен!",
+            reply_markup=get_admin_keyboard(),
+            parse_mode="Markdown"
+        )
+    else:
+        await message.answer("❌ Ошибка добавления сервера", reply_markup=get_admin_keyboard())
+    
+    await state.clear()
+
+
 # ==================== ЗАКАЗЫ ====================
 
 @router.callback_query(F.data == "admin_pending")
