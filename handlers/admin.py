@@ -96,10 +96,16 @@ async def admin_servers(callback: CallbackQuery):
     servers = await db.get_servers(active_only=False)
 
     if not servers:
-        await callback.message.edit_text(
-            "📭 Серверов нет. Добавьте первый!",
-            reply_markup=get_admin_keyboard()
-        )
+        try:
+            await callback.message.edit_text(
+                "📭 Серверов нет. Нажмите ➕ чтобы добавить.",
+                reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                    [InlineKeyboardButton(text="➕ Добавить сервер", callback_data="add_server")],
+                    [InlineKeyboardButton(text="⬅️ Назад", callback_data="back_to_admin")]
+                ])
+            )
+        except:
+            pass
         await callback.answer()
         return
 
