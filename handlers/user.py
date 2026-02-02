@@ -735,7 +735,7 @@ async def perform_server_switch(callback: CallbackQuery, bot: Bot):
     sub_id, new_server_id = int(parts[0]), int(parts[1])
     
     sub = await db.get_subscription(sub_id)
-    if not sub or sub['status'] != 'activated':
+    if not sub or sub['status'] != 'active':
         await callback.answer("❌ Подписка не найдена или не активна", show_alert=True)
         return
     
@@ -749,7 +749,7 @@ async def perform_server_switch(callback: CallbackQuery, bot: Bot):
             await old_server.delete_access_key(old_key['outline_key_id'])
     
     # Создаём новый ключ
-    from handlers.user import generate_outline_key, calculate_days_left
+    # Используем функции из этого же модуля
     days_left = calculate_days_left(sub['expires_at'])
     
     key_data = await generate_outline_key(sub['user_id'], new_server_id, sub_id, days_left)

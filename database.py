@@ -2,9 +2,10 @@
 База данных VPN-бота 3.0 (Async + SQLAlchemy)
 """
 import datetime
+from datetime import timedelta
 from typing import List, Dict, Optional, Any
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
-from sqlalchemy import select, update, delete, desc, func
+from sqlalchemy import select, update, delete, desc, func, text, case
 from sqlalchemy.orm import selectinload
 
 from config import logger, PERIOD_DAYS
@@ -40,7 +41,9 @@ class Database:
                     user.username = username
                     user.full_name = full_name
                     await session.commit()
-                return self._user_to_dict(user)
+                result = self._user_to_dict(user)
+                result['is_new'] = False
+                return result
 
             # Создание
             import secrets
@@ -63,7 +66,9 @@ class Database:
             )
             session.add(new_user)
             await session.commit()
-            return self._user_to_dict(new_user)
+            result = self._user_to_dict(new_user)
+            result['is_new'] = True
+            return result
 
     async def get_user(self, user_id: int) -> Optional[Dict[str, Any]]:
         async with self.async_session() as session:
@@ -567,26 +572,48 @@ class Database:
             
             sub.status = 'expired'
             if sub.server_id:
+                # Use case() to ensure current_users doesn't go below 0
                 await session.execute(
                     update(Server).where(Server.id == sub.server_id)
-                    .values(current_users=func.max(0, Server.current_users - 1))
+                    .values(current_users=case(
+                        (Server.current_users > 0, Server.current_users - 1),
+                        else_=0
+                    ))
                 )
             await session.commit()
             return True
             
     async def get_expiring_subscriptions_not_reminded(self, days: int = 3) -> List[Dict]:
-        """Для напомимнаний. В БД нет поля reminded. Добавим или используем updated_at или просто вернем expiring."""
-        # Для простоты вернем просто истекающие, проверка отправки должна быть снаружи или доб. поле в модель
-        # В старой БД было mark_reminder_sent?
-        # Посмотрим в старый database.py -> там был mark_reminder_sent(sub['id']) но в create table не было поля reminded...
-        # А, в старом database.py в create table тоже не было reminded. Видимо оно не работало или я пропустил.
-        # Проверим старый код. Да, там был метод mark_reminder_sent, но в CREATE TABLE subscriptions поля reminder_sent не было.
-        # Значит старый код падал или использовал updated_at?
-        # В любом случае для MVP вернем список.
-        return await self.get_expiring_subscriptions(days)
+        """Получить истекающие подписки, для которых ещё не отправлено напоминание"""
+        async with self.async_session() as session:
+            target_date = datetime.datetime.now() + timedelta(days=days)
+            res = await session.execute(
+                select(Subscription)
+                .options(selectinload(Subscription.user))
+                .where(
+                    Subscription.status == 'active',
+                    Subscription.expires_at <= target_date,
+                    Subscription.expires_at > datetime.datetime.now(),
+                    Subscription.reminder_sent == False
+                )
+            )
+            subs = res.scalars().all()
+            result = []
+            for s in subs:
+                d = self._model_to_dict(s)
+                d['username'] = s.user.username if s.user else None
+                d['expires_at'] = str(s.expires_at)
+                result.append(d)
+            return result
 
-    async def mark_reminder_sent(self, sub_id: int):
-        pass # Placeholder
+    async def mark_reminder_sent(self, sub_id: int) -> bool:
+        """Пометить подписку как получившую напоминание"""
+        async with self.async_session() as session:
+            await session.execute(
+                update(Subscription).where(Subscription.id == sub_id).values(reminder_sent=True)
+            )
+            await session.commit()
+            return True
 
     # Payments
     

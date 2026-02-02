@@ -72,6 +72,7 @@ class Subscription(Base):
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
     outline_key_id = Column(String, nullable=True) # Stores Outline Key ID for API deletion
+    reminder_sent = Column(Boolean, default=False)  # Track if expiration reminder was sent
 
     user = relationship("User", back_populates="subscriptions")
     server = relationship("Server", back_populates="subscriptions")
