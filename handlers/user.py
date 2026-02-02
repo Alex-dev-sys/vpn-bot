@@ -179,9 +179,10 @@ async def main_menu(callback: CallbackQuery, state: FSMContext):
 # ==================== ТРИАЛ ====================
 
 @router.callback_query(F.data == "start_trial")
-async def start_trial(callback: CallbackQuery, state: FSMContext):
-    """Начать триал (авто-выбор сервера)"""
-    user = await db.get_user(callback.from_user.id)
+async def start_trial(callback: CallbackQuery, state: FSMContext, bot: Bot = None):
+    """Начать триал — сразу выдаём ключ"""
+    user_obj = callback.from_user
+    user = await db.get_user(user_obj.id)
 
     if user and user['trial_used']:
         await callback.message.edit_text(
@@ -199,15 +200,48 @@ async def start_trial(callback: CallbackQuery, state: FSMContext):
         await callback.answer("❌ Нет доступных серверов", show_alert=True)
         return
 
-    # Сохраняем данные и переходим к выбору ОС
-    await state.update_data(period="trial", price=0, is_trial=True, server_id=best_server.server_id)
-    
-    await callback.message.edit_text(
-        TEXTS['choose_os'],
-        reply_markup=get_os_keyboard(),
-        parse_mode="Markdown"
+    await db.get_or_create_user(user_obj.id, user_obj.username, user_obj.full_name)
+
+    # Создаём подписку
+    sub_id = await db.create_subscription(
+        user_id=user_obj.id,
+        period="trial",
+        os="universal",
+        price=0,
+        is_trial=True,
+        server_id=best_server.server_id
     )
-    await state.set_state(OrderStates.choosing_os)
+
+    await db.mark_trial_used(user_obj.id)
+    
+    await callback.message.edit_text("⏳ Генерирую ключ...")
+    
+    # Генерируем ключ через Outline API
+    key_data = await generate_outline_key(user_obj.id, best_server.server_id, sub_id, days=1)
+    
+    if key_data:
+        # Проверяем реферала и начисляем бонус
+        db_user = await db.get_user(user_obj.id)
+        if db_user and db_user.get('referrer_id') and bot:
+            await db.add_referral_reward(db_user['referrer_id'], user_obj.id, REFERRAL_BONUS_DAYS)
+            try:
+                await bot.send_message(
+                    db_user['referrer_id'],
+                    f"🎉 Ваш реферал активировал триал!\n"
+                    f"Вам начислено *+{REFERRAL_BONUS_DAYS} дней* бонуса.",
+                    parse_mode="Markdown"
+                )
+            except:
+                pass
+
+        await send_outline_key(callback.message, key_data, is_trial=True)
+    else:
+        await callback.message.edit_text(
+            "❌ Ошибка генерации ключа. Попробуйте позже или напишите в поддержку.",
+            reply_markup=get_back_to_main()
+        )
+    
+    await state.clear()
     await callback.answer()
 
 
@@ -281,12 +315,12 @@ async def choose_discount_period(callback: CallbackQuery, state: FSMContext):
 
 
 @router.callback_query(F.data.startswith("period_"))
-async def choose_period(callback: CallbackQuery, state: FSMContext):
-    """Выбор тарифа (авто-выбор сервера)"""
+async def choose_period(callback: CallbackQuery, state: FSMContext, bot: Bot):
+    """Выбор тарифа — сразу к оплате (без выбора ОС)"""
     period = callback.data.replace("period_", "")
 
     if period == "trial":
-        return await start_trial(callback, state)
+        return await start_trial(callback, state, bot)
 
     price = PRICES.get(period, 100)
     
@@ -296,14 +330,51 @@ async def choose_period(callback: CallbackQuery, state: FSMContext):
         await callback.answer("❌ Нет доступных серверов", show_alert=True)
         return
 
-    await state.update_data(period=period, price=price, is_trial=False, server_id=best_server.server_id)
+    user = callback.from_user
+    await db.get_or_create_user(user.id, user.username, user.full_name)
+
+    # Создаём подписку сразу
+    sub_id = await db.create_subscription(
+        user_id=user.id,
+        period=period,
+        os="universal",  # Outline ключи универсальные
+        price=price,
+        is_trial=False,
+        server_id=best_server.server_id
+    )
+
+    period_name = PERIOD_NAMES.get(period, period)
+    server = await db.get_server(best_server.server_id)
+
+    # Генерируем ссылку на оплату
+    label = str(sub_id)
+    username = user.username or f"id{user.id}"
+    payment_url = payment_manager.create_payment_link(price, label, f"VPN #{sub_id} @{username}")
+
+    text = (
+        f"✅ *Заказ #{sub_id} создан!*\n\n"
+        f"📅 Тариф: {period_name}\n"
+        f"🌍 Сервер: {server['flag_emoji']} {server['location']}\n"
+        f"💰 К оплате: *{price}₽*\n\n"
+    )
+    
+    if payment_url:
+        text += "Нажмите *Оплатить* для автоматической выдачи ключа."
+    else:
+        text += "⏳ Оплата проверяется автоматически."
 
     await callback.message.edit_text(
-        TEXTS['choose_os'],
-        reply_markup=get_os_keyboard(),
+        text,
+        reply_markup=get_payment_keyboard(
+            sub_id, price, 
+            has_card=False,  # Не показываем карту
+            payment_url=payment_url
+        ),
         parse_mode="Markdown"
     )
-    await state.set_state(OrderStates.choosing_os)
+    
+    await state.update_data(sub_id=sub_id)
+    await state.set_state(OrderStates.waiting_payment)
     await callback.answer()
 
 
@@ -371,7 +442,7 @@ async def choose_os(callback: CallbackQuery, state: FSMContext, bot: Bot):
                 except:
                     pass
 
-            await send_outline_key(callback.message, key_data, os_type, is_trial=True)
+            await send_outline_key(callback.message, key_data, is_trial=True)
         else:
             # Fallback — старый способ через файлы
             key_file_id = await db.get_server_key(server_id, os_type)
@@ -468,27 +539,23 @@ async def generate_outline_key(user_id: int, server_id: int, sub_id: int, days: 
     return None
 
 
-async def send_outline_key(message, key_data: dict, os_type: str, is_trial: bool = False):
+async def send_outline_key(message, key_data: dict, is_trial: bool = False):
     """Отправка Outline ключа пользователю"""
-    instructions = get_instructions(os_type)
-    app_link = APP_LINKS.get(os_type, '')
+    instructions = get_instructions()  # Универсальная инструкция
     
-    trial_text = " (TEST 24h)" if is_trial else ""
+    trial_text = " (Тест 24ч)" if is_trial else ""
     
     text = (
-        f"🚀 *Ваш доступ готов!*{trial_text}\n\n"
-        f"🌍 Локация: {key_data.get('server_flag', '🌍')} {key_data.get('server_location', '')}\n"
-        f"📱 Устройство: {OS_EMOJIS.get(os_type, '')} {OS_NAMES.get(os_type, os_type)}\n\n"
-        f"👇 *Нажмите на ключ, чтобы скопировать:*\n"
+        f"🚀 *Ваш VPN-ключ готов!*{trial_text}\n\n"
+        f"🌍 Сервер: {key_data.get('server_flag', '🌍')} {key_data.get('server_location', '')}\n\n"
+        f"{'─' * 20}\n\n"
+        f"🔑 *Ваш ключ (нажмите чтобы скопировать):*\n"
         f"`{key_data['access_url']}`\n\n"
-        f"📚 *Инструкция:*\n"
-        f"1. Скачайте Outline: {app_link}\n"
-        f"2. Скопируйте ключ выше.\n"
-        f"3. Откройте приложение — оно само предложит добавить сервер.\n"
-        f"4. Нажмите ПOДКЛЮЧИТЬ.\n\n"
-        f"⚡ Приятного полёта!\n\n"
-        f"⚠️ *Важно:* Ключ предназначен для одного устройства.\n"
-        f"При обнаружении использования на нескольких устройствах ключ будет заблокирован."
+        f"{'─' * 20}\n\n"
+        f"{instructions}\n\n"
+        f"📲 *Скачать приложение:*\n"
+        f"https://getoutline.org/get-started/\n\n"
+        f"Спасибо за выбор! 💚"
     )
     
     if hasattr(message, 'edit_text'):
@@ -576,7 +643,7 @@ async def user_paid(callback: CallbackQuery, bot: Bot):
         key_data = await generate_outline_key(sub['user_id'], sub['server_id'], sub_id, days)
         
         if key_data:
-            await send_outline_key(callback.message, key_data, sub['os'])
+            await send_outline_key(callback.message, key_data)
             return
         else:
             # Fallback

@@ -99,73 +99,42 @@ REFERRAL_NEW_USER_BONUS_DAYS = 3  # Бонус новому пользовате
 # ==================== ССЫЛКИ НА ПРИЛОЖЕНИЯ ====================
 
 APP_LINKS = {
-    'ios': 'https://apps.apple.com/app/id6478942365',
-    'android': 'https://play.google.com/store/apps/details?id=org.amnezia.vpn',
-    'windows': 'https://github.com/amnezia-vpn/amnezia-client/releases',
-    'macos': 'https://github.com/amnezia-vpn/amnezia-client/releases',
-    'linux': 'https://github.com/amnezia-vpn/amnezia-client/releases'
+    'ios': 'https://apps.apple.com/app/outline-app/id1356177741',
+    'android': 'https://play.google.com/store/apps/details?id=org.outline.android.client',
+    'windows': 'https://s3.amazonaws.com/outline-releases/client/windows/stable/Outline-Client.exe',
+    'macos': 'https://apps.apple.com/app/outline-app/id1356178125',
+    'linux': 'https://s3.amazonaws.com/outline-releases/client/linux/stable/Outline-Client.AppImage'
 }
+
+# Универсальная ссылка на Outline (для авто-определения устройства)
+OUTLINE_UNIVERSAL_LINK = 'https://getoutline.org/get-started/'
 
 # ==================== ИНСТРУКЦИИ ====================
 
-def get_instructions(os_type: str) -> str:
-    """Получить инструкции для ОС"""
-    instructions = {
-        'ios': (
-            "📱 *Инструкция для iOS:*\n"
-            "1. Скачайте AmneziaVPN из App Store\n"
-            "2. Откройте приложение\n"
-            "3. Нажмите «Добавить конфигурацию»\n"
-            "4. Отсканируйте QR-код\n"
-            "5. Нажмите «Подключиться»"
-        ),
-        'android': (
-            "📱 *Инструкция для Android:*\n"
-            "1. Скачайте AmneziaVPN из Google Play\n"
-            "2. Откройте приложение\n"
-            "3. Нажмите «Добавить конфигурацию»\n"
-            "4. Отсканируйте QR-код\n"
-            "5. Нажмите «Подключиться»"
-        ),
-        'windows': (
-            "💻 *Инструкция для Windows:*\n"
-            "1. Скачайте AmneziaVPN по ссылке\n"
-            "2. Установите и откройте\n"
-            "3. Нажмите «Добавить конфигурацию»\n"
-            "4. Загрузите файл или QR-код\n"
-            "5. Нажмите «Подключиться»"
-        ),
-        'macos': (
-            "🖥 *Инструкция для macOS:*\n"
-            "1. Скачайте AmneziaVPN по ссылке\n"
-            "2. Установите и откройте\n"
-            "3. Нажмите «Добавить конфигурацию»\n"
-            "4. Загрузите файл или QR-код\n"
-            "5. Нажмите «Подключиться»"
-        ),
-        'linux': (
-            "🐧 *Инструкция для Linux:*\n"
-            "1. Скачайте AmneziaVPN по ссылке\n"
-            "2. Установите и откройте\n"
-            "3. Импортируйте конфигурацию\n"
-            "4. Нажмите «Подключиться»"
-        )
-    }
-    return instructions.get(os_type, instructions['windows'])
+def get_instructions(os_type: str = None) -> str:
+    """Получить универсальную инструкцию для Outline"""
+    return (
+        "📱 *Как подключиться:*\n"
+        "1. Скачайте приложение Outline\n"
+        "2. Скопируйте ключ выше (нажмите на него)\n"
+        "3. Откройте Outline — он сам предложит добавить сервер\n"
+        "4. Нажмите «Подключиться»\n\n"
+        "💡 Ключ работает на любом устройстве!"
+    )
 
 # ==================== ТЕКСТЫ ====================
 
 TEXTS = {
     'welcome': (
-        "👋 *Приветствую в AmneziaVPN Shop!*\n\n"
-        "🚀 **Твой личный доступ к свободному интернету.**\n"
-        "Мы предоставляем быстрый и надежный VPN на базе протокола Outline.\n\n"
-        "💎 **Почему мы?**\n"
+        "👋 *Добро пожаловать в Outline VPN!*\n\n"
+        "🚀 *Твой личный доступ к свободному интернету.*\n"
+        "Быстрый и надежный VPN на базе протокола Shadowsocks.\n\n"
+        "💎 *Почему мы?*\n"
         "• Высокая скорость и стабильность\n"
         "• Работает Instagram, YouTube (4K), Netflix\n"
         "• Анонимность и отсутствие логов\n"
-        "• 1 подписка = 1 устройство\n\n"
-        "👇 *Начни прямо сейчас:*"
+        "• Один ключ = любое устройство\n\n"
+        "👇 *Выбери тариф:*"
     ),
     'choose_period': (
         "📅 *Выбери свой тариф:*\n\n"

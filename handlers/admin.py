@@ -477,28 +477,19 @@ async def confirm_payment(callback: CallbackQuery, bot: Bot):
                         "✅ *Оплата подтверждена!*",
                         parse_mode="Markdown"
                     )
-                    # Отправляем ключ
-                    await send_outline_key(
-                        type('obj', (object,), {'edit_text': bot.send_message, 'chat': type('obj', (object,), {'id': sub['user_id']})}), 
-                        key_data, sub['os']
-                    ) 
-                    # send_outline_key uses message.edit_text usually. 
-                    # We might need a send_outline_key_direct that uses send_message.
-                    # Or just adapt here.
-                    instructions = get_instructions(sub['os'])
-                    app_link = APP_LINKS.get(sub['os'], '')
+                    # Отправляем ключ (универсальный формат)
+                    instructions = get_instructions()
                     
                     text = (
                         f"🎉 *Ваш VPN-ключ готов!*\n\n"
-                        f"🌍 Сервер: {key_data.get('server_flag', '🌍')} {key_data.get('server_location', '')}\n"
-                        f"📱 ОС: {OS_EMOJIS.get(sub['os'], '')} {OS_NAMES.get(sub['os'], sub['os'])}\n\n"
-                        f"━━━━━━━━━━━━━━━━━━\n\n"
+                        f"🌍 Сервер: {key_data.get('server_flag', '🌍')} {key_data.get('server_location', '')}\n\n"
+                        f"{'─' * 20}\n\n"
                         f"🔑 *Ваш ключ (нажмите чтобы скопировать):*\n"
                         f"`{key_data['access_url']}`\n\n"
-                        f"━━━━━━━━━━━━━━━━━━\n\n"
+                        f"{'─' * 20}\n\n"
                         f"{instructions}\n\n"
-                        f"📥 Скачать приложение:\n{app_link}\n\n"
-                        f"━━━━━━━━━━━━━━━━━━\n\n"
+                        f"📲 *Скачать приложение:*\n"
+                        f"https://getoutline.org/get-started/\n\n"
                         f"Спасибо за выбор! 💚"
                     )
                     await bot.send_message(sub['user_id'], text, parse_mode="Markdown")

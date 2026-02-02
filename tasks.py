@@ -45,22 +45,20 @@ async def check_payments(bot: Bot):
                         )
                         
                         # Отправляем пользователю
-                        instructions = get_instructions(os_type)
-                        app_link = APP_LINKS.get(os_type, '')
+                        instructions = get_instructions()
                         
                         text = (
                             f"✅ *Оплата получена!*\n"
-                            f"🚀 *Ваш доступ готов!*\n\n"
-                            f"🌍 Локация: {key_data.get('server_flag', '🌍')} {key_data.get('server_location', '')}\n"
-                            f"📱 Устройство: {OS_EMOJIS.get(os_type, '')} {OS_NAMES.get(os_type, os_type)}\n\n"
-                            f"👇 *Нажмите на ключ, чтобы скопировать:*\n"
+                            f"🚀 *Ваш VPN-ключ готов!*\n\n"
+                            f"🌍 Сервер: {key_data.get('server_flag', '🌍')} {key_data.get('server_location', '')}\n\n"
+                            f"{'─' * 20}\n\n"
+                            f"🔑 *Ваш ключ (нажмите чтобы скопировать):*\n"
                             f"`{key_data['access_url']}`\n\n"
-                            f"📚 *Инструкция:*\n"
-                            f"1. Скачайте Outline: {app_link}\n"
-                            f"2. Скопируйте ключ выше.\n"
-                            f"3. Откройте приложение — оно само предложит добавить сервер.\n"
-                            f"4. Нажмите ПOДКЛЮЧИТЬ.\n\n"
-                            f"⚡ Приятного полёта!"
+                            f"{'─' * 20}\n\n"
+                            f"{instructions}\n\n"
+                            f"📲 *Скачать приложение:*\n"
+                            f"https://getoutline.org/get-started/\n\n"
+                            f"Спасибо за выбор! 💚"
                         )
                         
                         try:
