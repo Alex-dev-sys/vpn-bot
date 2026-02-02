@@ -293,13 +293,14 @@ def init_outline_servers(servers_data: List[Dict]):
     ]
     """
     for srv in servers_data:
-        if srv.get("api_url") and srv.get("cert_sha256"):
+        if srv.get("outline_api_url") and srv.get("outline_cert"):
             outline_manager.add_server(
                 server_id=srv["id"],
                 name=srv.get("name", f"Server-{srv['id']}"),
-                api_url=srv["api_url"],
-                cert_sha256=srv["cert_sha256"],
+                api_url=srv["outline_api_url"],
+                cert_sha256=srv["outline_cert"],
                 location=srv.get("location", "Unknown"),
                 country_code=srv.get("country_code", "XX"),
                 flag_emoji=srv.get("flag_emoji", "🌍")
             )
+
